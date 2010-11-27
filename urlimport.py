@@ -150,7 +150,7 @@ class UrlImporter(Importer):
 
         log.debug("load_module: executing %s's source..." % fullname)
 
-        exec self.source in mod.__dict__
+        exec self.source.strip() in mod.__dict__
 
         mod = sys.modules[fullname]
         return mod
