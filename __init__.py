@@ -6,9 +6,51 @@ See PEP 302(http://www.python.org/dev/peps/pep-0302/) for more info.
 
 import sys, os, re
 import imp
+
 import logging
+SOURCE = 5
+logging.addLevelName(SOURCE, "SOURCE")
 logging.basicConfig()
 log = logging.getLogger()
+
+
+class Loader:
+    """ A basic module loader.
+    """
+
+    def __init__(self, source, fullpath, ispkg, importer=None):
+        self.source = source
+        self.fullpath = fullpath
+        self.ispkg = ispkg
+        self.importer = importer
+
+    def load_module(self, fullname):
+        """ Add the new module to sys.modules,
+            execute its source and return it.
+        """
+
+        mod = sys.modules.setdefault(fullname, imp.new_module(fullname))
+
+        mod.__file__ = self.fullpath
+        mod.__loader__ = self
+        if self.ispkg and self.importer:
+            mod.__path__ = [self.importer.join(self.importer.path, fullname.split(".")[-1])]
+
+        #for line in self.source.split('\n'):
+        #    log.log(SOURCE, "%s %s" %('|>|', line))
+
+        log.debug("load_module: executing %s's source..." % fullname)
+
+        try:
+            exec self.source in mod.__dict__
+        except:
+            if fullname in sys.modules:
+                del sys.modules[fullname]
+            raise
+        
+        mod = sys.modules[fullname]
+        return mod
+
 
 class ImporterMeta(type):
     """ A metaclass for all importers.
@@ -36,9 +78,7 @@ class Importer:
     def __init__(self, path):
         m = self.re_fullpath.match(path)
         if m:
-            self.fullname = None
-            self.ispkg = False
-            self.path = m.groupdict()["path"]
+            self.__dict__.update(m.groupdict())
             self.debug("accepting '%s'." % path)
         else:
             self.debug("rejecting path item: '%s'" % path)
@@ -63,165 +103,49 @@ class Importer:
         sys.path_hooks.delete(cls)
 
     def find_module(self, fullname, mpath=None):
-        self.fullname = fullname
-        for loader in self.gen_loaders():
+        loader = None
+        for ispkg in [False, True]:
             try:
-                loader.get_source()
+                source, fullpath = self.get_source(fullname, ispkg=ispkg)
+                loader = self.get_loader(source, fullpath, ispkg)
             except Exception, e:
-                self.debug("find_module: failed to get '%s'. (%s)" % (self.fullpath(), e))
+                self.debug("find_module: %s: failed to get '%s'. (%s)" % ({True: 'PKG', False: 'MOD'}.get(ispkg), fullname, e))
             else:
-                self.debug("find_module: got '%s'. mpath=%s" % (self.fullpath(), mpath))
+                self.debug("find_module: %s: got '%s'. mpath=%s" % ({True: 'PKG', False: 'MOD'}.get(ispkg), fullname, mpath))            
+                break
+        return loader
 
-                return loader
-
-    def load_module(self, fullname):
-        """ Add the new module to sys.modules,
-         execute its source and return it.
-        """
-
-        mod = sys.modules.setdefault(fullname, imp.new_module(fullname))
-
-        mod.__file__ = self.fullpath()
-        mod.__loader__ = self
-        if self.ispkg:
-            mod.__path__ = [self.join(self.path, self.name)]
-
-        #for line in self.source.split('\n'):
-        #    log.log(SOURCE, "%s %s" %('|>|', line))
-
-        self.debug("load_module: executing %s's source..." % fullname)
-
-        exec self.source in mod.__dict__
-
-        mod = sys.modules[fullname]
-        return mod
-
-    
     def debug(self, str):
         log.debug("%s: %s" % (self.__class__.__name__, str))
 
 
     # -- stuff to override
 
-    def fullpath(self):
-        if self.ispkg:
-            fullpath = os.path.join(self.path, self.fullname.split(".")[-1]) + "/__init__.py"
+    def fullpath(self, fullname, ispkg):
+        if ispkg:
+            fullpath = self.join(self.path, fullname.split(".")[-1]) + "/__init__.py"
         else:
-            fullpath = os.path.join(self.path, self.fullname.split(".")[-1]) + ".py"
+            fullpath = self.join(self.path, fullname.split(".")[-1]) + ".py"
         return fullpath
 
     def join(self, *parts):
         return os.path.join(*parts)
 
-    def gen_loaders(self):
-        name = self.fullname.split('.')[-1]
-        self.name = name
-        
-        # <path>/<name>.py
-        self.ispkg = False
-        yield self
-        
-        # <path>/<name>/__init__.py
-        self.ispkg = True
-        yield self
-
-    def get_source(self):
+    def get_source(self, fullname, ispkg):
         """ Get the source for the new module to be loaded.
         """
-        fullpath = self.fullpath()
-        self.source = open(fullpath).read().replace("\r\n", "\n")
-        return True
-        
-class UrlImporter(Importer):
-    re_fullpath = re.compile(''.join([
-        r'^',
-        r'(?P<location>(http|https|ftp)://[^#]+)',
-        r'#(?P<package>.+)',
-        r'$'
-    ]))
+        fullpath = self.fullpath(fullname, ispkg)
+        return open(fullpath).read().replace("\r\n", "\n"), fullpath
 
-    def __init__(self, path):
-        m = self.re_fullpath.match(path)
-        if m:
-            self.location = m.groupdict()["location"]
-            self.package = m.groupdict()["package"]
-            self.basepath = self.fullpath
-            log.debug("UrlImporter: accepting '%s'." % path)
-        else:
-            #log.debug("UrlImporter: rejecting path item: '%s'" % path)
-            raise ImportError
-
-    @property
-    def fullpath(self, with_package=False):
-        url = "%s" % (self.location)
-        if with_package:
-            url += "#%s" % self.package
-        return url
-
-    def get_candidates(self, fullname):
-        name = fullname.split('.')[-1]
-         
-        # check if name is allowed to be imported
-        if self.package != "__all__" and name != self.package:
-            #log.debug("find_module: not allowed to import '%s%s'." % (self.fullpath, name))
-            raise StopIteration
-        
-        for url, path in [
-         (self.fullpath + name + '.py',          None),
-         (self.fullpath + name + '/__init__.py', self.fullpath + name + "/#__all__")]:
-            yield url, path
-           
-    def find_module(self, fullname, mpath=None):
-        """try to locate the remote module, do this:
-         a) try to get name.py from self.url
-         b) try to get __init__.py from self.url/name/
+    def get_loader(self, source, fullpath, ispkg):
+        """ Get the loader instance to load the new module.
         """
-            
-        for url, path in self.get_candidates(fullname):
-            try:
-                self.source = self.get_source(url)
-            except Exception, e:
-                log.debug("find_module: failed to get '%s'. (%s)" % (url, e))
-            else:
-                log.debug("find_module: got '%s'. mpath=%s" % (url, mpath))
-                self.path = path
-                self.__file__ = url
-                return self
-
-        return None
-
-    def get_source(self, url):
-        """Download the source from given url.
-        """
-        from urllib2 import urlopen
-        return urlopen(url).read().replace("\r\n", "\n")
-
-    def load_module(self, fullname):
-        """ Add the new module to sys.modules,
-         execute its source and return it.
-        """
-
-        mod = sys.modules.setdefault(fullname, imp.new_module(fullname))
-
-        mod.__file__ = "%s" % self.__file__
-        mod.__loader__ = self
-        if self.path:
-            mod.__path__ = [self.path]
-
-        for line in self.source.split('\n'):
-            log.log(SOURCE, "%s %s" %('|>|', line))
-
-        log.debug("load_module: executing %s's source..." % fullname)
-
-        exec self.source.strip() in mod.__dict__
-
-        mod = sys.modules[fullname]
-        return mod
+        return Loader(source, fullpath, ispkg, importer=self)
 
 
 # register The Hook
 def register():
-    if lImporter.register() != False:
+    if Importer.register() != False:
         log.info("Custom importer enabled.")
         log.info("This stuff is experimental, use at your own risk. Enjoy.")
     
