@@ -10,7 +10,7 @@ import imp
 import logging
 SOURCE = 5
 logging.addLevelName(SOURCE, "SOURCE")
-logging.basicConfig()
+logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger()
 
 
