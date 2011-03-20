@@ -72,7 +72,7 @@ class Importer:
 class UrlImporter(Importer):
     re_fullpath = re.compile(''.join([
         r'^',
-        r'(?P<location>(http|ftp)://[^#]+)',
+        r'(?P<location>(http|https|ftp)://[^#]+)',
         r'#(?P<package>.+)',
         r'$'
     ]))
