@@ -73,8 +73,6 @@ class Importer:
 
     re_fullpath = re.compile(r'^(?P<path>.+)$')
 
-    # -- private stuff
-
     def __init__(self, path):
         m = self.re_fullpath.match(path)
         if m:

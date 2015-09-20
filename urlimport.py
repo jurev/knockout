@@ -4,12 +4,54 @@ urlimport.py - Enables remote module importing by adding URLs to sys.path.
 See PEP 302(http://www.python.org/dev/peps/pep-0302/) for more info.
 """
 
-import sys, re
+import sys, re, logging
+import imp
+
 import knockout
 from urlparse import urljoin
 from urllib2 import urlopen
 
-log = knockout.log
+log = logging.getLogger("urlimport")
+logging.addLevelName(5, "SOURCE")
+SOURCE = 5
+
+class URLLoader:
+    """ A basic URL module loader.
+    """
+
+    def __init__(self, source, fullpath, ispkg, importer=None):
+        self.source = source
+        self.fullpath = fullpath
+        self.ispkg = ispkg
+        self.importer = importer
+
+    def load_module(self, fullname):
+        """ Add the new module to sys.modules,
+            execute its source and return it.
+        """
+
+        mod = sys.modules.setdefault(fullname, imp.new_module(fullname))
+
+        mod.__file__ = self.fullpath
+        mod.__loader__ = self
+        if self.ispkg and self.importer:
+            mod.__path__ = [self.importer.join(self.importer.path, fullname.split(".")[-1] + "/#__all__")]
+
+        for line in self.source.split('\n'):
+            log.log(SOURCE, "%s %s" %('|>|', line))
+
+        log.debug("load_module: executing %s's source..." % fullname)
+
+        try:
+            exec self.source in mod.__dict__
+        except:
+            if fullname in sys.modules:
+                del sys.modules[fullname]
+            raise
+        
+        mod = sys.modules[fullname]
+        return mod
+
 
 class UrlImporter(knockout.Importer):
     re_fullpath = re.compile(''.join([
@@ -27,17 +69,18 @@ class UrlImporter(knockout.Importer):
         """Download the source for the new module to be loaded.
         """
         # are we allowed to download this module?
-        name = fullname.split(".")[-1]
-        if self.package != '__all__' and name != self.package:
-            raise Exception("Not allowed to import '%s'." % fullname)
+        if "." not in fullname:
+            if self.package != '__all__' and fullname != self.package:
+                raise Exception("Not allowed to import '%s'." % fullname)
             
         fullpath = self.fullpath(fullname, ispkg)
+        log.debug("Trying to fetch %s" % fullpath)
         return urlopen(fullpath).read().replace("\r\n", "\n"), fullpath
 
     def get_loader(self, source, fullpath, ispkg):
         """ Get the loader instance to load the new module.
         """
-        return knockout.Loader(source, fullpath, ispkg, importer=self)
+        return URLLoader(source, fullpath, ispkg, importer=self)
 
 
 # register The Hook
