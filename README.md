@@ -7,8 +7,9 @@ Knockout aims to extend the basic importing mechanisms in Python by allowing mor
 Currently, the available importers are:
 
 - *urlimport.py*: Import modules from anywhere on the web by adding URLs to sys.path.
+- *github.py*: Import modules from Github repositories.
 
-### Basic usage	
+### Importing modules from the web	
 	
 	>>> from knockout import urlimport
 	>>> urlimport.register()
@@ -23,3 +24,20 @@ Currently, the available importers are:
 	
 	>>> BeautifulSoup
 	<module 'BeautifulSoup' from 'http://www.crummy.com/software/BeautifulSoup/download/3.x/BeautifulSoup-3.0.8/BeautifulSoup.py'>
+	
+### Importing modules from Github
+
+    >>> from knockout import github
+    >>> github.register()
+    INFO:github:Github importing enabled. Add targets to sys.path.
+    INFO:github:A valid target looks like this: github:path#package
+    INFO:github:This stuff is experimental, use at your own risk. Enjoy.
+    >>> import sys
+    >>> sys.path.insert(0, 'github:waylan/Python-Markdown#markdown')
+    >>> import markdown
+    ...
+
+    >>> markdown.markdown("foo")
+    u'<p>foo</p>'
+	
+	
