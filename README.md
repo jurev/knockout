@@ -29,9 +29,9 @@ Currently, the available importers are:
 
     >>> from knockout import github
     >>> github.register()
-    INFO:github:Github importing enabled. Add targets to sys.path.
-    INFO:github:A valid target looks like this: github:path#package
-    INFO:github:This stuff is experimental, use at your own risk. Enjoy.
+    Github importing enabled. Add targets to sys.path.
+    A valid target looks like this: github:path#package
+    This stuff is experimental, use at your own risk. Enjoy.
     >>> import sys
     >>> sys.path.insert(0, 'github:waylan/Python-Markdown#markdown')
     >>> import markdown
