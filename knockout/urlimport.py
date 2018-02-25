@@ -12,8 +12,6 @@ from urlparse import urljoin
 from urllib2 import urlopen
 
 log = logging.getLogger("urlimport")
-logging.addLevelName(5, "SOURCE")
-SOURCE = 5
 
 class UrlImporter(Importer):
     re_fullpath = re.compile(''.join([
@@ -51,9 +49,4 @@ def register():
         log.info("Url importing enabled. Add urls to sys.path.")
         log.info("A valid url looks like this: http://example.com/path/to/repository/#packagename")
         log.info("This stuff is experimental, use at your own risk. Enjoy.")
-    
-def clear_cache():        
-    sys.path_importer_cache.clear()
 
-
-#register()
