@@ -7,9 +7,9 @@ See PEP 302(http://www.python.org/dev/peps/pep-0302/) for more info.
 import sys, re, logging
 import imp
 
-from core import Loader, Importer, SilentlyIgnoreException
-from urlparse import urljoin
-from urllib2 import urlopen
+from .core import Loader, Importer, SilentlyIgnoreException
+from urllib.parse import urljoin
+from urllib.request import urlopen
 
 log = logging.getLogger("urlimport")
 
@@ -35,7 +35,7 @@ class UrlImporter(Importer):
             
         fullpath = self.fullpath(fullname, ispkg)
         log.debug("Trying to fetch %s" % fullpath)
-        return urlopen(fullpath).read().replace("\r\n", "\n"), fullpath
+        return urlopen(fullpath).read(), fullpath
 
     def get_loader(self, source, fullpath, ispkg):
         """ Get the loader instance to load the new module.

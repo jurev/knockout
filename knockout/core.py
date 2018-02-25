@@ -8,8 +8,6 @@ import sys, os, re
 import imp
 
 import logging
-SOURCE = 5
-logging.addLevelName(SOURCE, "SOURCE")
 logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger()
 
@@ -43,7 +41,7 @@ class Loader:
         log.debug("load_module: executing %s's source..." % fullname)
 
         try:
-            exec self.source in mod.__dict__
+            exec(self.source, mod.__dict__)
         except:
             if fullname in sys.modules:
                 del sys.modules[fullname]
